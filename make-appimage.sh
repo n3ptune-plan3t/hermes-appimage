@@ -92,6 +92,18 @@ rsync -a "${STAGE}/usr/share/hermes-webui/" "${APPDIR}/usr/share/hermes-webui/"
 # Bring pure-python site-packages sharun may have missed
 rsync -a "${STAGE}/usr/lib/python3."*"/site-packages/" \
     "${APPDIR}/usr/lib/python3.11/site-packages/" 2>/dev/null || true
+    
+# quick-sharun's ldd-walk misses libpython*.so since CPython dlopen's it
+# at runtime rather than linking it directly - copy it in manually.
+LIBPYTHON="$(find "${WORKDIR}/pyroot/lib" -maxdepth 1 -iname 'libpython3*.so*' | head -n1)"
+if [ -n "$LIBPYTHON" ]; then
+    mkdir -p "${APPDIR}/shared/lib"
+    cp -a "$LIBPYTHON" "${APPDIR}/shared/lib/"
+    # also cover any other .so.N symlink variants sitting next to it
+    cp -a "${WORKDIR}/pyroot/lib/"libpython3*.so* "${APPDIR}/shared/lib/" 2>/dev/null || true
+else
+    echo "WARNING: could not locate libpython3*.so under pyroot/lib - AppImage will likely fail at runtime" >&2
+fi
 
 # =========================================================
 # 3. Custom AppRun — the whole point of this build: start the
