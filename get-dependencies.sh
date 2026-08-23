@@ -23,13 +23,6 @@ echo "---------------------------------------------------------------"
 get-debloated-pkgs --add-common --prefer-nano || true
 
 # -----------------------------------------------------------------
-# Comment this out if you need an AUR package.
-# (Not used here - hermes-agent/hermes-webui aren't packaged in AUR,
-# we build from source below instead.)
-# -----------------------------------------------------------------
-# make-aur-package PACKAGENAME
-
-# -----------------------------------------------------------------
 # Manual build: fetch a portable CPython + hermes-agent + hermes-webui,
 # and pip-install the latter two INTO that interpreter.
 # -----------------------------------------------------------------
@@ -48,13 +41,28 @@ if [ ! -x ./pyroot/bin/python3 ]; then
     curl -fsSL -o ./python.tar.gz "$PY_URL"
     tar -xzf ./python.tar.gz -C ./pyroot --strip-components=1
 fi
+
+# FAIL LOUD if this PBS asset doesn't ship a shared libpython.
+# Without it the final AppImage dies instantly with
+# "error while loading shared libraries: libpython3.11.so.1.0".
+if [ ! -f ./pyroot/lib/libpython3.11.so.1.0 ]; then
+    echo "::error::libpython3.11.so.1.0 not found in ./pyroot/lib" >&2
+    echo "::error::This PBS tag/asset variant likely links libpython differently." >&2
+    echo "::error::Try a different PBS_TAG or the full release asset." >&2
+    exit 1
+fi
+echo "Verified: $(ls ./pyroot/lib/libpython3*)"
+
 PYBIN="$(pwd)/pyroot/bin/python3"
 
 [ -d ./hermes-agent ] || git clone --depth=1 https://github.com/NousResearch/hermes-agent.git ./hermes-agent
 [ -d ./hermes-webui ] || git clone --depth=1 https://github.com/nesquena/hermes-webui.git ./hermes-webui
 
 "$PYBIN" -m ensurepip
-"$PYBIN" -m pip install --no-cache-dir -e "./hermes-agent[all]"
+# NOTE: NO '-e' here. Editable installs write absolute CI workspace paths
+# into .pth files inside site-packages, which break the bundle on any
+# machine other than the build runner (source of leaked '__w' dirs).
+"$PYBIN" -m pip install --no-cache-dir "./hermes-agent[all]"
 "$PYBIN" -m pip install --no-cache-dir -r ./hermes-webui/requirements.txt
 
 # Export VERSION for make-appimage.sh (written to a plain file since
