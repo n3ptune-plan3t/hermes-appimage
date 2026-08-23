@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Hermes Web (light)
+GenericName=AI Agent (browser UI)
+Comment=Low-RAM Hermes Agent - runs the local webui and opens your browser
+Exec=hermes-web
+Icon=hermes-web
+Terminal=false
+Categories=Utility;Network;Chat;
