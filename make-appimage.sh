@@ -35,12 +35,40 @@ mkdir -p "${STAGE}/usr/bin" \
 
 cp -a "${WORKDIR}/pyroot/." "${STAGE}/usr/"
 cp -a "${WORKDIR}/hermes-webui/." "${STAGE}/usr/share/hermes-webui/"
-cp "${WORKDIR}/hermes-web.desktop" "${STAGE}/usr/share/applications/"
+
+if [ -f "${WORKDIR}/hermes-web.desktop" ]; then
+    cp "${WORKDIR}/hermes-web.desktop" "${STAGE}/usr/share/applications/"
+else
+    echo "WARNING: hermes-web.desktop not found at repo root (${WORKDIR}) - generating a default one." >&2
+    cat > "${STAGE}/usr/share/applications/hermes-web.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Hermes Web (light)
+GenericName=AI Agent (browser UI)
+Comment=Low-RAM Hermes Agent - runs the local webui and opens your browser
+Exec=hermes-web
+Icon=hermes-web
+Terminal=false
+Categories=Utility;Network;Chat;
+EOF
+fi
 
 # =========================================================
 # 2. Deploy with quick-sharun (bundles python3 + its libs)
 # =========================================================
-export ICON="${WORKDIR}/icon.png"   # supply your own 256x256 icon here
+if [ -f "${WORKDIR}/icon.png" ]; then
+    export ICON="${WORKDIR}/icon.png"
+else
+    echo "WARNING: icon.png not found at repo root (${WORKDIR}) - generating a placeholder (quick-sharun requires a valid ICON path)." >&2
+    # Minimal valid 1x1 transparent PNG, base64-encoded - just enough to
+    # satisfy quick-sharun's path check. Replace with a real 256x256 icon
+    # at repo root whenever you want an actual logo.
+    base64 -d > "${WORKDIR}/generated-icon.png" <<'B64_EOF'
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YA
+AAAASUVORK5CYII=
+B64_EOF
+    export ICON="${WORKDIR}/generated-icon.png"
+fi
 export DESKTOP="${STAGE}/usr/share/applications/hermes-web.desktop"
 export MAIN_BIN="python3"
 export OUTPATH="${WORKDIR}/dist"
