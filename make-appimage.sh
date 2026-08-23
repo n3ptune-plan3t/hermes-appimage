@@ -43,7 +43,9 @@ cp "${WORKDIR}/hermes-web.desktop" "${STAGE}/usr/share/applications/"
 export ICON="${WORKDIR}/icon.png"   # supply your own 256x256 icon here
 export DESKTOP="${STAGE}/usr/share/applications/hermes-web.desktop"
 export MAIN_BIN="python3"
+export OUTPATH="${WORKDIR}/dist"
 export UPINFO="gh-releases-zsync|${GITHUB_REPOSITORY%/*:-yourname}|${GITHUB_REPOSITORY#*/:-hermes-web-appimage}|latest|*${ARCH}.AppImage.zsync"
+mkdir -p "${OUTPATH}"
 
 if ! command -v quick-sharun >/dev/null 2>&1; then
     curl -fsSL -o /usr/local/bin/quick-sharun \
@@ -118,4 +120,4 @@ chmod +x "${APPDIR}/AppRun"
 quick-sharun --make-appimage
 
 echo "Done. Output:"
-ls -la ./*.AppImage 2>/dev/null || true
+ls -la "${OUTPATH}"/*.AppImage 2>/dev/null || true
