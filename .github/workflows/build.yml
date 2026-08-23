@@ -12,40 +12,33 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
-    # pkgforge-dev templates build inside their Arch-based AppImage
-    # builder container, where pacman/get-debloated-pkgs/make-aur-package
-    # and quick-sharun are preinstalled. Swap the tag if you're pinning
-    # to a specific pkgforge-dev release image.
-    container: pkgforge-dev/appimage-builder:latest
+    runs-on: ubuntu-latest
+    container: ghcr.io/pkgforge-dev/archlinux:latest
     strategy:
       matrix:
         arch: [x86_64]
     steps:
       - uses: actions/checkout@v4
 
+      - name: Preparing Container
+        uses: pkgforge-dev/anylinux-setup-action@v2
+
       - name: Stage 1 - install deps, build the app
         env:
           ARCH: ${{ matrix.arch }}
-        run: |
-          chmod +x get-dependencies.sh
-          ./get-dependencies.sh
+        run: /bin/sh ./get-dependencies.sh
 
       - name: Stage 2 - package as AppImage
         env:
           ARCH: ${{ matrix.arch }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: |
-          chmod +x make-appimage.sh
-          ./make-appimage.sh
+        run: /bin/sh ./make-appimage.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: Hermes-Web-${{ matrix.arch }}
-          path: |
-            *.AppImage
-            *.AppImage.zsync
+          path: dist
 
       - name: Publish release
         if: github.event_name != 'push'
@@ -53,6 +46,4 @@ jobs:
         with:
           tag_name: continuous
           prerelease: true
-          files: |
-            *.AppImage
-            *.AppImage.zsync
+          files: dist/*
