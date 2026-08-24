@@ -81,7 +81,26 @@ if ! command -v quick-sharun >/dev/null 2>&1; then
     chmod +x /usr/local/bin/quick-sharun
 fi
 
-quick-sharun "${STAGE}/usr/bin/python3"
+# python-build-standalone's python3 is a stub binary that dlopen's
+# libpython*.so.* at runtime rather than linking it via DT_NEEDED, so
+# quick-sharun's ldd-based dependency walker won't find it on its own.
+# Fix: locate it BEFORE deploying and pass it directly to quick-sharun
+# alongside python3, same pattern pkgforge-dev uses for any app with
+# multiple deploy targets (see Quickshell-AppImage's make-appimage.sh:
+# `quick-sharun /usr/bin/qs /usr/bin/quickshell`). This lets sharun's
+# own CPython-aware patching (it has a dedicated
+# _fix_cpython_ldconfig_mess hook) register and wire the lib up
+# correctly, instead of us bolting a raw file copy on after deploy.
+LIBPYTHON="$(find "${STAGE}/usr/lib" -maxdepth 1 -iname 'libpython3*.so*' | head -n1)"
+if [ -n "${LIBPYTHON}" ]; then
+    echo "Deploying python3 + ${LIBPYTHON}"
+    quick-sharun "${STAGE}/usr/bin/python3" "${LIBPYTHON}"
+else
+    echo "WARNING: no libpython3*.so* found under ${STAGE}/usr/lib - deploying" >&2
+    echo "  python3 alone; if this build's python3 needs a shared libpython" >&2
+    echo "  at runtime, it will fail the same way as before." >&2
+    quick-sharun "${STAGE}/usr/bin/python3"
+fi
 
 APPDIR="$(find . -maxdepth 1 -iname '*.AppDir' | head -n1)"
 
@@ -92,25 +111,6 @@ rsync -a "${STAGE}/usr/share/hermes-webui/" "${APPDIR}/usr/share/hermes-webui/"
 # Bring pure-python site-packages sharun may have missed
 rsync -a "${STAGE}/usr/lib/python3."*"/site-packages/" \
     "${APPDIR}/usr/lib/python3.11/site-packages/" 2>/dev/null || true
-
-# quick-sharun's ldd-walk misses libpython*.so.* since CPython dlopen's it
-# at runtime instead of linking it directly at build time - copy it in
-# manually. Path confirmed from the AppImage's own runtime error:
-# .../shared/bin/../lib/libpython3.11.so.1.0
-SHAREDLIB_DIR="${APPDIR}/shared/lib"
-mkdir -p "${SHAREDLIB_DIR}"
-
-FOUND_LIBPYTHON="$(find "${WORKDIR}/pyroot" -iname 'libpython3*.so*' | head -n1)"
-if [ -n "${FOUND_LIBPYTHON}" ]; then
-    LIBPYTHON_DIR="$(dirname "${FOUND_LIBPYTHON}")"
-    cp -a "${LIBPYTHON_DIR}"/libpython3*.so* "${SHAREDLIB_DIR}/"
-    echo "Copied libpython from ${LIBPYTHON_DIR} to ${SHAREDLIB_DIR}"
-else
-    echo "WARNING: no libpython3*.so* found anywhere under pyroot/ - the" >&2
-    echo "  python-build-standalone tarball may be statically linked, in" >&2
-    echo "  which case this specific error shouldn't happen; if it still" >&2
-    echo "  does, the root cause is something other than a missing lib." >&2
-fi
 
 # =========================================================
 # 3. Custom AppRun — the whole point of this build: start the
